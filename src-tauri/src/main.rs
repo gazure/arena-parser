@@ -1,20 +1,23 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::{Arc, Mutex};
+
 use ap_core::cards::CardsDatabase;
 use ap_core::match_insights::MatchInsightDB;
-use ap_core::processor::{ArenaEventSource, PlayerLogProcessor};
-use ap_core::replay::MatchReplayBuilder;
-use ap_core::storage_backends::ArenaMatchStorageBackend;
-use crossbeam_channel::{select, unbounded};
+use notify::Watcher;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tauri::api::path::home_dir;
 use tauri::{Manager, State};
+use tauri::api::path::home_dir;
 use tracing::{error, info};
+
+use crate::deck::GoldfishDeckDisplayRecord;
+use crate::scryfall::ScryfallDataManager;
+
+mod deck;
+mod ingest;
+mod scryfall;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct MTGAMatch {
@@ -28,16 +31,16 @@ struct MTGAMatch {
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 struct DeckList {
     game_number: i32,
-    deck: Vec<String>,
-    sideboard: Vec<String>,
+    deck: Vec<i32>,
+    sideboard: Vec<i32>,
 }
 
 impl DeckList {
-    fn new(game_number: i32, main: &str, sideboard: &str) -> Self {
+    fn new(game_number: i32, deck: Vec<i32>, sideboard: Vec<i32>) -> Self {
         Self {
             game_number,
-            deck: main.split(',').map(|s| s.to_string()).collect(),
-            sideboard: sideboard.split(',').map(|s| s.to_string()).collect(),
+            deck,
+            sideboard,
         }
     }
 }
@@ -58,6 +61,7 @@ struct MatchDetails {
     did_controller_win: bool,
     controller_player_name: String,
     opponent_player_name: String,
+    primary_decklist: Option<GoldfishDeckDisplayRecord>,
     decklists: Vec<DeckList>,
     mulligans: Vec<Mulligan>,
 }
@@ -88,15 +92,29 @@ fn get_matches(db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> Vec<MTGAMatch> {
     matches
 }
 
+fn process_raw_decklist(raw_decklist: &str) -> Vec<i32> {
+    let parsed = serde_json::from_str(raw_decklist).unwrap();
+    match parsed {
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_i64())
+            .map(|v| v as i32)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 #[tauri::command]
-fn get_match_details(match_id: String, db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> MatchDetails {
+fn get_match_details(match_id: String, scryfall: State<'_, Arc<Mutex<ScryfallDataManager>>>, db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> MatchDetails {
     let db = db.inner().lock().unwrap();
+    let scryfall = scryfall.inner().lock().unwrap();
     let mut statement = db.conn.prepare("\
         SELECT \
             m.id, m.controller_player_name, m.opponent_player_name, m.controller_seat_id = mr.winning_team_id \
         FROM matches m JOIN match_results mr ON m.id = mr.match_id \
         WHERE m.id = ?1 AND mr.result_scope = \"MatchScope_Match\" LIMIT 1
     ").unwrap();
+    info!("Getting match details for match_id: {}", match_id);
     let mut match_details = statement
         .query_row([&match_id], |row| {
             let id: String = row.get(0)?;
@@ -108,11 +126,14 @@ fn get_match_details(match_id: String, db: State<'_, Arc<Mutex<MatchInsightDB>>>
                 did_controller_win,
                 controller_player_name,
                 opponent_player_name,
+                primary_decklist: None,
                 decklists: Vec::new(),
                 mulligans: Vec::new(),
             })
-        })
-        .unwrap();
+        }).unwrap_or_else(|e| {
+            error!("Error getting match details: {:?}", e);
+            MatchDetails::default()
+        });
 
     let mut decklists_statement = db
         .conn
@@ -129,14 +150,25 @@ fn get_match_details(match_id: String, db: State<'_, Arc<Mutex<MatchInsightDB>>>
             let maindeck_string: String = row.get(1)?;
             let sideboard_string: String = row.get(2)?;
 
-            Ok(
-                DeckList::new(game_number, &maindeck_string, &sideboard_string),
-            )
+            let maindeck_parsed = process_raw_decklist(&maindeck_string);
+            let sideboard_parsed = process_raw_decklist(&sideboard_string);
+
+            Ok(DeckList::new(
+                game_number,
+                maindeck_parsed,
+                sideboard_parsed,
+            ))
         })
         .unwrap()
-        .for_each(|row| {
-            match_details.decklists.push(row.unwrap())
-        });
+        .for_each(|row| match_details.decklists.push(row.unwrap()));
+
+    let primary_decklist = match_details.decklists.first().unwrap();
+    let goldfish_dr_res = GoldfishDeckDisplayRecord::from_decklist(
+        primary_decklist.clone(),
+        &scryfall,
+        &db.cards_database,
+    );
+    match_details.primary_decklist = goldfish_dr_res.ok();
 
     let mut mulligans_statement = db.conn.prepare("\
         SELECT m.game_number, m.number_to_keep, m.hand, m.play_draw, m.opponent_identity, m.decision \
@@ -164,9 +196,7 @@ fn get_match_details(match_id: String, db: State<'_, Arc<Mutex<MatchInsightDB>>>
         .unwrap()
         .for_each(|mulligan| {
             let mulligan = mulligan.unwrap();
-            match_details
-                .mulligans
-                .push(mulligan);
+            match_details.mulligans.push(mulligan);
         });
 
     match_details
@@ -175,38 +205,6 @@ fn get_match_details(match_id: String, db: State<'_, Arc<Mutex<MatchInsightDB>>>
 #[tauri::command]
 fn hello_next_tauri() -> String {
     "Hello Next Tauri App!".to_string()
-}
-
-fn log_process_start(db: Arc<Mutex<MatchInsightDB>>, player_log_path: PathBuf) {
-    let (_notify_tx, notify_rx) = unbounded::<()>();
-    let mut processor = PlayerLogProcessor::try_new(player_log_path.clone())
-        .expect("Could not build player log processor");
-    let mut match_replay_builder = MatchReplayBuilder::new();
-    info!("Player log: {:?}", player_log_path);
-    loop {
-        select! {
-            recv(notify_rx) -> _ => {
-                info!("do something with notify");
-            }
-            default(Duration::from_secs(1)) => {
-                while let Some(parse_output) = processor.get_next_event() {
-                    if match_replay_builder.ingest_event(parse_output) {
-                        let match_replay = match_replay_builder.build();
-                        match match_replay {
-                            Ok(mr) => {
-                                let mut db = db.lock().unwrap();
-                                db.write(&mr).expect("Could not write match replay to db");
-                            }
-                            Err(e) => {
-                                error!("Error building match replay: {}", e);
-                            }
-                        }
-                        match_replay_builder = MatchReplayBuilder::new();
-                    }
-                }
-            }
-        }
-    }
 }
 
 fn main() {
@@ -231,16 +229,24 @@ fn main() {
             db.init().expect("Failed to initialize database");
             let db_arc = Arc::new(Mutex::new(db));
 
-            let home_dir = home_dir()
+            let scryfall_cache_db_path = app_data_dir.join("scryfall_cache.db");
+            let conn = Connection::open(scryfall_cache_db_path)
+                .expect("Failed to open scryfall cache database");
+            let scryfall_manager = scryfall::ScryfallDataManager::new(conn);
+            scryfall_manager
+                .init()
+                .expect("Failed to initialize scryfall cache database");
+
+            let sm_arc = Arc::new(Mutex::new(scryfall_manager));
+
+            let player_log_path = home_dir()
                 .expect("Could not find player.log in home dir")
                 .join("AppData/LocalLow/Wizards of the Coast/MTGA/Player.log");
 
+            app.manage(sm_arc.clone());
             app.manage(db_arc.clone());
 
-            std::thread::spawn(move || {
-                info!("Spawning processor thread");
-                log_process_start(db_arc, home_dir);
-            });
+            ingest::start_processing_logs(db_arc.clone(), player_log_path);
 
             Ok(())
         })

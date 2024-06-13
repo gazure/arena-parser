@@ -1,13 +1,34 @@
 'use client'
 
-import { invoke} from "@tauri-apps/api/tauri";
-import {useEffect, useState} from "react";
+import {invoke} from "@tauri-apps/api/tauri";
+import React, {useEffect, useState} from "react";
 
 interface DeckList {
     game_number: number;
-    deck: string[];
-    sideboard: string[];
+    deck: number[];
+    sideboard: number[];
 }
+
+interface Card {
+    name: string;
+    quantity: number;
+    mana_value: number;
+}
+
+interface PrimaryDecklist {
+    archetype: string;
+    main_deck: {
+        Creature: Card[];
+        Instant: Card[];
+        Sorcery: Card[];
+        Enchantment: Card[];
+        Artifact: Card[];
+        Planeswalker: Card[];
+        Land: Card[];
+    };
+    sideboard: Card[];
+}
+
 
 interface Mulligan {
     hand: string[];
@@ -23,9 +44,37 @@ interface MatchDetails {
     did_controller_win: boolean;
     controller_player_name: string;
     opponent_player_name: string;
+    primary_decklist: PrimaryDecklist | null;
     decklists: DeckList[];
     mulligans: Mulligan[];
 }
+
+interface Card {
+    name: string;
+    quantity: number;
+    mana_value: number;
+}
+
+interface SubTypeListProps {
+    header: string;
+    cards: Card[];
+    includeManaValue: boolean;
+}
+
+const SubTypeList: React.FC<SubTypeListProps> = ({ header, cards, includeManaValue }) => {
+    return (
+        <div>
+            <h5>{header}</h5>
+            {cards.map((card, index) => (
+                <p key={index}>
+                    {card.quantity} {card.name}
+                    {includeManaValue && ` - ${card.mana_value}`}
+                </p>
+            ))}
+        </div>
+    );
+};
+
 
 export default function MatchDetails() {
     const [match, setMatch] = useState<MatchDetails | null>(null);
@@ -45,11 +94,24 @@ export default function MatchDetails() {
                 did_controller_win: false,
                 controller_player_name: "",
                 opponent_player_name: "",
+                primary_decklist: null,
                 decklists: [],
                 mulligans: []
             });
         }
     }, [])
+
+    // Ensure that all card types are defined because I'm tired of life and javascript deserves to suffer
+    if (match && match.primary_decklist) {
+        match.primary_decklist.main_deck.Artifact = match.primary_decklist.main_deck.Artifact || [];
+        match.primary_decklist.main_deck.Creature = match.primary_decklist.main_deck.Creature || [];
+        match.primary_decklist.main_deck.Enchantment = match.primary_decklist.main_deck.Enchantment || [];
+        match.primary_decklist.main_deck.Instant = match.primary_decklist.main_deck.Instant || [];
+        match.primary_decklist.main_deck.Land = match.primary_decklist.main_deck.Land || [];
+        match.primary_decklist.main_deck.Planeswalker = match.primary_decklist.main_deck.Planeswalker || [];
+        match.primary_decklist.main_deck.Sorcery = match.primary_decklist.main_deck.Sorcery || [];
+        match.primary_decklist.sideboard = match.primary_decklist.sideboard || [];
+    }
 
     return (
         <div>
@@ -64,6 +126,38 @@ export default function MatchDetails() {
                     </div>
                     <div>
                         <h2>Decklists</h2>
+                        {match.primary_decklist && (
+                            <div>
+                                <h3>Primary Decklist</h3>
+                                <p>Archetype: {match.primary_decklist.archetype}</p>
+                                <h4>Main Deck</h4>
+                                {match.primary_decklist.main_deck.Creature.length > 0 && (
+                                    <SubTypeList header="Creatures" cards={match.primary_decklist.main_deck.Creature} includeManaValue={true} />
+                                )}
+                                {match.primary_decklist.main_deck.Instant.length > 0 && (
+                                    <SubTypeList header="Instants" cards={match.primary_decklist.main_deck.Instant} includeManaValue={true} />
+                                )}
+                                {match.primary_decklist.main_deck.Sorcery.length > 0 && (
+                                    <SubTypeList header="Sorceries" cards={match.primary_decklist.main_deck.Sorcery} includeManaValue={true} />
+                                )}
+                                {match.primary_decklist.main_deck.Enchantment.length > 0 && (
+                                    <SubTypeList header="Enchantments" cards={match.primary_decklist.main_deck.Enchantment} includeManaValue={true} />
+                                )}
+                                {match.primary_decklist.main_deck.Artifact.length > 0 && (
+                                    <SubTypeList header="Artifacts" cards={match.primary_decklist.main_deck.Artifact} includeManaValue={true} />
+                                )}
+                                {match.primary_decklist.main_deck.Planeswalker.length > 0 && (
+                                    <SubTypeList header="Planeswalkers" cards={match.primary_decklist.main_deck.Planeswalker} includeManaValue={true} />
+                                )}
+                                {match.primary_decklist.main_deck.Land.length > 0 && (
+                                    <SubTypeList header="Lands" cards={match.primary_decklist.main_deck.Land} includeManaValue={false} />
+                                )}
+                                {match.primary_decklist.sideboard.length > 0 && (
+                                    <SubTypeList header="Sideboard" cards={match.primary_decklist.sideboard} includeManaValue={true} />
+                                )}
+                            </div>
+                        )}
+
                         {match.decklists.map((decklist, index) => (
                             <div key={index}>
                                 <h3>Game {decklist.game_number}</h3>
