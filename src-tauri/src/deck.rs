@@ -49,7 +49,7 @@ impl GoldfishDeckDisplayRecord {
             })
             .collect::<HashMap<i32, u16>>();
         let unique_side: Vec<_> = value.sideboard.iter().unique().cloned().collect();
-        let main_cards = unique_main
+        let mut main_cards = unique_main
             .iter()
             .map(|card_id| {
                 let (card_type, mut card) = scryfall.get_card_info(*card_id, cards_db)?;
@@ -62,6 +62,7 @@ impl GoldfishDeckDisplayRecord {
                 }
                 acc
             });
+        main_cards.values_mut().for_each(|cards| cards.sort());
 
         let sideboard_cards = unique_side
             .iter()
