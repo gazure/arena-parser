@@ -1,8 +1,8 @@
 [package]
 name = "app"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "0.0.2"
+description = "MTGA Arena parsing companion app"
+authors = ["Grant Azure <azure.grant@gmail.com>"]
 license = ""
 repository = ""
 default-run = "app"
