@@ -31,3 +31,13 @@ body {
     text-wrap: balance;
   }
 }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th, td {
+  border: 1px solid rgb(var(--foreground-rgb));
+  padding: 0.5rem;
+}

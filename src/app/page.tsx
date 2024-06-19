@@ -1,10 +1,9 @@
-import Hello from "./greet"
-
+import ResetButton from "@/app/reset";
 
 export default function Home() {
     return (
         <main className="">
-        <Hello />
-    </main>
+            <ResetButton />
+        </main>
   );
 }

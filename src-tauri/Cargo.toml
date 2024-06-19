@@ -17,7 +17,6 @@ tauri-build = { version = "1.5.2", features = [] }
 [dependencies]
 anyhow = "1.0.86"
 crossbeam = "0.8.4"
-home = "0.5.9"
 itertools = "0.13.0"
 crossbeam-channel = "0.5.13"
 tracing = "0.1.40"
@@ -26,12 +25,10 @@ serde_json = "1.0"
 notify = "6.1.1"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.6.4", features = [] }
-regex = { version = "1.10.5", features = [] }
 ap_core = { git = "https://github.com/gazure/arenaparser.git" }
 rusqlite = {  version = "0.31.0", features = ["bundled", "chrono"] }
 tokio = { version = "1.37.0", features = ["default"] }
 reqwest = { version = "0.12.4", features = ["blocking", "json"] }
-log = "0.4.21"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
