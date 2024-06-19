@@ -23,7 +23,9 @@ pub enum CardType {
 
 impl Display for CardType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        serde_json::to_string(self).unwrap_or("Unknown".to_string()).fmt(f)
+        serde_json::to_string(self)
+            .unwrap_or("Unknown".to_string())
+            .fmt(f)
     }
 }
 
@@ -52,11 +54,14 @@ impl GoldfishDeckDisplayRecord {
                 card.quantity = main_quantities.get(card_id).unwrap_or(&0).clone();
                 card
             })
-            .fold(HashMap::new(), |mut acc: HashMap<CardType, Vec<Card>>, card| {
-                let card_type = card.card_type.clone();
-                acc.entry(card_type).or_default().push(card);
-                acc
-            });
+            .fold(
+                HashMap::new(),
+                |mut acc: HashMap<CardType, Vec<Card>>, card| {
+                    let card_type = card.card_type.clone();
+                    acc.entry(card_type).or_default().push(card);
+                    acc
+                },
+            );
         main_cards.values_mut().for_each(|cards| cards.sort());
 
         let sideboard_cards = sideboard_quantities
@@ -112,7 +117,7 @@ impl DeckDifference {
         collection
             .iter()
             .filter_map(|(card_id, quantity)| {
-                let mut card= scryfall.get_card_info(*card_id, cards_database);
+                let mut card = scryfall.get_card_info(*card_id, cards_database);
                 card.quantity = *quantity;
                 Some(card)
             })

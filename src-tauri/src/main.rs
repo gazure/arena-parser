@@ -10,8 +10,8 @@ use ap_core::deck::Deck;
 use ap_core::match_insights::MatchInsightDB;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use tauri::{App, Manager, State};
 use tauri::api::path::home_dir;
+use tauri::{App, Manager, State};
 use tracing::{error, info};
 
 use crate::deck::{DeckDifference, GoldfishDeckDisplayRecord};
@@ -228,10 +228,12 @@ fn get_match_details(
     match_details
 }
 #[tauri::command]
-fn clear_scryfall_cache(scryfall: State<'_, Arc<Mutex<ScryfallDataManager>>>) -> Result<(), APError>{
+fn clear_scryfall_cache(
+    scryfall: State<'_, Arc<Mutex<ScryfallDataManager>>>,
+) -> Result<(), APError> {
     let scryfall = scryfall.inner().lock().unwrap();
     scryfall.clear().map_err(|_| APError {
-        message: "Failed to clear scryfall cache".to_string()
+        message: "Failed to clear scryfall cache".to_string(),
     })
 }
 

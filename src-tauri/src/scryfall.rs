@@ -147,11 +147,7 @@ impl ScryfallDataManager {
         }
     }
 
-    pub fn get_card_info(
-        &self,
-        card_id: i32,
-        cards_database: &CardsDatabase,
-    ) -> Card {
+    pub fn get_card_info(&self, card_id: i32, cards_database: &CardsDatabase) -> Card {
         let pretty_name = cards_database.get_pretty_name(&card_id.to_string());
         // TODO: clean this up if possible
         let swapped_card_id = if let Ok(pretty_name) = pretty_name {
@@ -169,16 +165,14 @@ impl ScryfallDataManager {
             warn!("Error getting cached card: {:?}", e);
             None
         });
-        cached.unwrap_or_else(|| {
-            match self.fetch_card_info(swapped_card_id) {
-                Ok(card) => {
-                    self.save_card(swapped_card_id, &card);
-                    card
-                }
-                Err(e) => {
-                    warn!("Error fetching card info: {:?}", e);
-                    Card::new(card_id.to_string(), CardType::Unknown, 0, 1)
-                }
+        cached.unwrap_or_else(|| match self.fetch_card_info(swapped_card_id) {
+            Ok(card) => {
+                self.save_card(swapped_card_id, &card);
+                card
+            }
+            Err(e) => {
+                warn!("Error fetching card info: {:?}", e);
+                Card::new(card_id.to_string(), CardType::Unknown, 0, 1)
             }
         })
     }
@@ -192,22 +186,24 @@ impl ScryfallDataManager {
         let mana_value = resp_json["cmc"].as_f64().unwrap_or(0.0) as u16;
         let card_id_str = card_id.to_string();
         let layout = resp_json["layout"].as_str().unwrap_or("");
-        let mut card_name = resp_json["name"].as_str().unwrap_or(&card_id_str).to_string();
+        let mut card_name = resp_json["name"]
+            .as_str()
+            .unwrap_or(&card_id_str)
+            .to_string();
         let mut card_type = card_type_from_type_line(resp_json["type_line"].as_str().unwrap_or(""));
 
         if layout == "transform" || layout == "modal_dfc" {
             if let Some(card_faces) = resp_json["card_faces"].as_array() {
-                card_name = card_faces[0]["name"].as_str().unwrap_or(&card_id_str).to_string();
-                card_type = card_type_from_type_line(card_faces[0]["type_line"].as_str().unwrap_or(""));
+                card_name = card_faces[0]["name"]
+                    .as_str()
+                    .unwrap_or(&card_id_str)
+                    .to_string();
+                card_type =
+                    card_type_from_type_line(card_faces[0]["type_line"].as_str().unwrap_or(""));
             }
         }
 
-        let card = Card::new(
-            card_name,
-            card_type,
-            mana_value,
-            1,
-        );
+        let card = Card::new(card_name, card_type, mana_value, 1);
         Ok(card)
     }
 }

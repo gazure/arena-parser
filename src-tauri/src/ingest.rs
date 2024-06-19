@@ -6,19 +6,17 @@ use ap_core::match_insights::MatchInsightDB;
 use ap_core::processor::{ArenaEventSource, PlayerLogProcessor};
 use ap_core::replay::MatchReplayBuilder;
 use ap_core::storage_backends::ArenaMatchStorageBackend;
-use crossbeam_channel::{select, Sender, unbounded};
+use crossbeam_channel::{select, unbounded, Sender};
 use notify::{Event, Watcher};
 use tracing::{error, info};
 
 fn watch_player_log_rotation(notify_tx: Sender<Event>, player_log_path: PathBuf) {
-    let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
-        match res {
-            Ok(event) => {
-                notify_tx.send(event).unwrap_or(());
-            }
-            Err(e) => {
-                error!("watch error: {:?}", e);
-            }
+    let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| match res {
+        Ok(event) => {
+            notify_tx.send(event).unwrap_or(());
+        }
+        Err(e) => {
+            error!("watch error: {:?}", e);
         }
     })
     .expect("Could not create watcher");
