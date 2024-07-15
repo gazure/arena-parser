@@ -10,7 +10,7 @@ use crossbeam_channel::{select, unbounded, Sender};
 use notify::{Event, Watcher};
 use tracing::{error, info};
 
-fn watch_player_log_rotation(notify_tx: Sender<Event>, player_log_path: PathBuf) {
+fn watch_player_log_rotation(notify_tx: Sender<Event>, player_log_path: &PathBuf) {
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| match res {
         Ok(event) => {
             notify_tx.send(event).unwrap_or(());
@@ -21,14 +21,14 @@ fn watch_player_log_rotation(notify_tx: Sender<Event>, player_log_path: PathBuf)
     })
     .expect("Could not create watcher");
     watcher
-        .watch(&*player_log_path, notify::RecursiveMode::NonRecursive)
+        .watch(player_log_path, notify::RecursiveMode::NonRecursive)
         .expect("Could not watch player log path");
     loop {
         std::thread::sleep(Duration::from_secs(1));
     }
 }
 
-pub fn log_process_start(db: Arc<Mutex<MatchInsightDB>>, player_log_path: PathBuf) {
+fn log_process_start(db: Arc<Mutex<MatchInsightDB>>, player_log_path: &PathBuf) {
     let (notify_tx, notify_rx) = unbounded::<Event>();
     let mut processor = PlayerLogProcessor::try_new(player_log_path.clone())
         .expect("Could not build player log processor");
@@ -37,7 +37,7 @@ pub fn log_process_start(db: Arc<Mutex<MatchInsightDB>>, player_log_path: PathBu
     let plp = player_log_path.clone();
 
     std::thread::spawn(move || {
-        watch_player_log_rotation(notify_tx, plp);
+        watch_player_log_rotation(notify_tx, &plp);
     });
 
     loop {
@@ -55,7 +55,7 @@ pub fn log_process_start(db: Arc<Mutex<MatchInsightDB>>, player_log_path: PathBu
                         let match_replay = match_replay_builder.build();
                         match match_replay {
                             Ok(mr) => {
-                                let mut db = db.lock().unwrap();
+                                let mut db = db.lock().expect("Could not lock db");
                                 db.write(&mr).expect("Could not write match replay to db");
                             }
                             Err(e) => {
@@ -72,6 +72,6 @@ pub fn log_process_start(db: Arc<Mutex<MatchInsightDB>>, player_log_path: PathBu
 
 pub fn start_processing_logs(db: Arc<Mutex<MatchInsightDB>>, player_log_path: PathBuf) {
     std::thread::spawn(move || {
-        log_process_start(db, player_log_path);
+        log_process_start(db, &player_log_path);
     });
 }

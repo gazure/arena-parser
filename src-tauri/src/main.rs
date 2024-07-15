@@ -1,13 +1,19 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![forbid(unsafe_code)]
+#![deny(clippy::pedantic)]
+#![deny(clippy::unwrap_used)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::too_many_arguments)]
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
 
 use ap_core::cards::CardsDatabase;
-use ap_core::deck::Deck;
 use ap_core::match_insights::MatchInsightDB;
+use ap_core::models::deck::Deck;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::api::path::home_dir;
@@ -54,8 +60,9 @@ struct Mulligan {
 }
 
 impl Mulligan {
+
     pub fn new(
-        hand: String,
+        hand: &str,
         opponent_identity: String,
         game_number: i32,
         number_to_keep: i32,
@@ -101,7 +108,7 @@ struct MatchDetails {
 #[tauri::command]
 fn get_matches(db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> Vec<MTGAMatch> {
     let mut matches = Vec::new();
-    let db = db.inner().lock().unwrap();
+    let db = db.inner().lock().expect("Failed to lock db");
     let mut statement = db.conn.prepare("SELECT * FROM matches").unwrap();
     statement
         .query_map([], |row| {
@@ -168,23 +175,15 @@ fn get_match_details(
             })
     };
 
-    let decklists = db.get_decklists(&match_id).unwrap_or(Vec::default());
-    match_details.decklists = decklists;
+    match_details.decklists = db.get_decklists(&match_id).unwrap_or_default();
 
-    let primary_decklist = match_details.decklists.first();
-    match_details.primary_decklist = if let Some(primary_deck) = primary_decklist {
-        Some(GoldfishDeckDisplayRecord::from_decklist(
-            primary_deck.clone(),
-            &scryfall,
-            &db.cards_database,
-        ))
-    } else {
-        None
-    };
+    match_details.primary_decklist = match_details.decklists.first().map(|primary_decklist| {
+        GoldfishDeckDisplayRecord::from_decklist(primary_decklist, &scryfall, &db.cards_database)
+    });
 
     match_details.decklists.windows(2).for_each(|pair| {
         if let [prev, next] = pair {
-            let diff = DeckDifference::difference(prev, next, &*scryfall, &db.cards_database);
+            let diff = DeckDifference::difference(prev, next, &scryfall, &db.cards_database);
             match_details
                 .differences
                 .get_or_insert_with(Vec::new)
@@ -206,7 +205,7 @@ fn get_match_details(
             let opponent_identity: String = row.get(4)?;
             let decision: String = row.get(5)?;
             Ok(Mulligan::new(
-                hand,
+                &hand,
                 opponent_identity,
                 game_number,
                 number_to_keep,

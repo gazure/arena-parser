@@ -31,23 +31,23 @@ impl Eq for Card {}
 
 impl Ord for Card {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        let mana_value_ordering = self.mana_value.cmp(&other.mana_value);
+        if mana_value_ordering == Ordering::Equal {
+            self.name.cmp(&other.name)
+        } else {
+            mana_value_ordering
+        }
     }
 }
 
 impl PartialEq<Self> for Card {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.mana_value == other.mana_value
+        self.cmp(other) == Ordering::Equal
     }
 }
 impl PartialOrd<Self> for Card {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let mana_value_ordering = self.mana_value.cmp(&other.mana_value);
-        if mana_value_ordering != Ordering::Equal {
-            Some(mana_value_ordering)
-        } else {
-            Some(self.name.cmp(&other.name))
-        }
+        Some(self.cmp(other))
     }
 }
 
@@ -119,7 +119,7 @@ impl ScryfallDataManager {
         let mut statement = self
             .conn
             .prepare("SELECT card_json FROM cards WHERE id = ?1")?;
-        let mut rows = statement.query(&[&card_id])?;
+        let mut rows = statement.query([&card_id])?;
         let row = rows.next()?;
         match row {
             Some(row) => {
@@ -180,7 +180,7 @@ impl ScryfallDataManager {
     fn fetch_card_info(&self, card_id: i32) -> anyhow::Result<Card> {
         let response = self
             .client
-            .get(format!("https://api.scryfall.com/cards/arena/{}", card_id))
+            .get(format!("https://api.scryfall.com/cards/arena/{card_id}"))
             .send()?;
         let resp_json: Value = response.json()?;
         let mana_value = resp_json["cmc"].as_f64().unwrap_or(0.0) as u16;

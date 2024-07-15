@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use ap_core::cards::CardsDatabase;
-use ap_core::deck::Deck;
+use ap_core::models::deck::Deck;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,7 @@ pub(crate) struct GoldfishDeckDisplayRecord {
 
 impl GoldfishDeckDisplayRecord {
     pub fn from_decklist(
-        value: Deck,
+        value: &Deck,
         scryfall: &ScryfallDataManager,
         cards_db: &CardsDatabase,
     ) -> Self {
@@ -51,7 +51,7 @@ impl GoldfishDeckDisplayRecord {
             .keys()
             .map(|card_id| {
                 let mut card = scryfall.get_card_info(*card_id, cards_db);
-                card.quantity = main_quantities.get(card_id).unwrap_or(&0).clone();
+                card.quantity = *main_quantities.get(card_id).unwrap_or(&0u16);
                 card
             })
             .fold(
@@ -67,10 +67,10 @@ impl GoldfishDeckDisplayRecord {
         let sideboard_cards = sideboard_quantities
             .keys()
             .copied()
-            .filter_map(|card_id| {
+            .map(|card_id| {
                 let mut card = scryfall.get_card_info(card_id, cards_db);
-                card.quantity = sideboard_quantities.get(&card_id).unwrap_or(&0).clone();
-                Some(card)
+                card.quantity = *sideboard_quantities.get(&card_id).unwrap_or(&0u16);
+                card
             })
             .sorted()
             .collect();
@@ -95,15 +95,14 @@ impl DeckDifference {
     }
     fn missing_cards(main1: &HashMap<i32, u16>, main2: &HashMap<i32, u16>) -> HashMap<i32, u16> {
         let mut missing = Vec::new();
-        for (card_id, quantity) in main1.iter() {
-            if !main2.contains_key(card_id) {
-                (0u16..*quantity).for_each(|_| missing.push(*card_id));
-            } else {
-                let deck2_quantity = main2.get(card_id).unwrap();
+        for (card_id, quantity) in main1 {
+            if let Some(deck2_quantity) = main2.get(card_id) {
                 if deck2_quantity < quantity {
                     let diff = quantity - deck2_quantity;
                     (0..diff).for_each(|_| missing.push(*card_id));
                 }
+            } else {
+                (0u16..*quantity).for_each(|_| missing.push(*card_id));
             }
         }
         quantities(&missing)
@@ -116,10 +115,10 @@ impl DeckDifference {
     ) -> Vec<Card> {
         collection
             .iter()
-            .filter_map(|(card_id, quantity)| {
+            .map(|(card_id, quantity)| {
                 let mut card = scryfall.get_card_info(*card_id, cards_database);
                 card.quantity = *quantity;
-                Some(card)
+                card
             })
             .sorted()
             .collect()
@@ -144,11 +143,11 @@ impl DeckDifference {
 }
 
 fn quantities(deck: &[i32]) -> HashMap<i32, u16> {
-    let unique: Vec<_> = deck.iter().unique().cloned().collect();
+    let unique: Vec<_> = deck.iter().unique().copied().collect();
     let deck_quantities: HashMap<i32, u16> = unique
         .iter()
         .map(|ent_id| {
-            let quantity = deck.iter().filter(|&id| id == ent_id).count() as u16;
+            let quantity = u16::try_from(deck.iter().filter(|&id| id == ent_id).count()).unwrap_or_default();
             (*ent_id, quantity)
         })
         .collect();
