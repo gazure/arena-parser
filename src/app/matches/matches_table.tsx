@@ -8,6 +8,7 @@ interface MTGAMatch {
     id: number;
     controller_player_name: string;
     opponent_player_name: string;
+    created_at: string;
 }
 
 export default function MatchesTable() {
@@ -37,6 +38,7 @@ export default function MatchesTable() {
                         <td><Link href={"/match-details?id=" + match.id}>{match.id}</Link></td>
                         <td>{match.controller_player_name}</td>
                         <td>{match.opponent_player_name}</td>
+                        <td>{match.created_at}</td>
                     </tr>
                 ))}
             </tbody>

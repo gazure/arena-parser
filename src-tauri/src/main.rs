@@ -7,6 +7,7 @@
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::too_many_arguments)]
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
@@ -14,6 +15,9 @@ use std::sync::{Arc, Mutex};
 use ap_core::cards::CardsDatabase;
 use ap_core::match_insights::MatchInsightDB;
 use ap_core::models::deck::Deck;
+use ap_core::models::match_result::MatchResult;
+use ap_core::models::mtga_match::MTGAMatch;
+use ap_core::models::mulligan::MulliganInfo;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::api::path::home_dir;
@@ -40,15 +44,8 @@ impl Display for APError {
 
 impl Error for APError {}
 
-#[derive(Debug, Deserialize, Serialize)]
-struct MTGAMatch {
-    id: String,
-    controller_seat_id: i32,
-    controller_player_name: String,
-    opponent_player_name: String,
-    created_at: String,
-}
 
+// TODO: Unify this with MulliganInfo in library crate
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 struct Mulligan {
     hand: Vec<Card>,
@@ -60,7 +57,6 @@ struct Mulligan {
 }
 
 impl Mulligan {
-
     pub fn new(
         hand: &str,
         opponent_identity: String,
@@ -90,49 +86,60 @@ impl Mulligan {
             decision,
         }
     }
+
+    pub fn from_mulligan_info(mulligan_info: &MulliganInfo, scryfall: &ScryfallDataManager, cards_database: &CardsDatabase) -> Self {
+        Self::new(
+            &mulligan_info.hand,
+            mulligan_info.opponent_identity.clone(),
+            mulligan_info.game_number,
+            mulligan_info.number_to_keep,
+            mulligan_info.play_draw.clone(),
+            mulligan_info.decision.clone(),
+            scryfall,
+            cards_database
+        )
+    }
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct GameResultDisplay {
+    pub game_number: i32,
+    pub winning_player: String,
+}
+
+impl GameResultDisplay {
+    pub fn from_match_result(mr: &MatchResult, controller_seat_id: i32, controller_player_name: &str, opponent_player_name: &str) -> Self {
+        Self {
+            game_number: mr.game_number.unwrap_or_default(),
+            winning_player: if mr.winning_team_id == controller_seat_id {
+                controller_player_name.into()
+            } else {
+                opponent_player_name.into()
+            }
+        }
+    }
+}
+
 
 // TODO: Builder pattern, lol
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 struct MatchDetails {
     id: String,
     did_controller_win: bool,
+    controller_seat_id: i32,
     controller_player_name: String,
     opponent_player_name: String,
     primary_decklist: Option<GoldfishDeckDisplayRecord>,
     differences: Option<Vec<DeckDifference>>,
+    game_results: Vec<GameResultDisplay>,
     decklists: Vec<Deck>,
     mulligans: Vec<Mulligan>,
 }
 
 #[tauri::command]
 fn get_matches(db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> Vec<MTGAMatch> {
-    let mut matches = Vec::new();
-    let db = db.inner().lock().expect("Failed to lock db");
-    let mut statement = db.conn.prepare("SELECT * FROM matches").unwrap();
-    statement
-        .query_map([], |row| {
-            let id: String = row.get(0)?;
-            let controller_seat_id: i32 = row.get(1)?;
-            let controller_player_name: String = row.get(2)?;
-            let opponent_player_name: String = row.get(3)?;
-            Ok(MTGAMatch {
-                id,
-                controller_seat_id,
-                controller_player_name,
-                opponent_player_name,
-                created_at: "".to_string(),
-            })
-        })
-        .map(|rows| rows.collect::<Vec<Result<MTGAMatch, _>>>())
-        .unwrap_or_default()
-        .into_iter()
-        .for_each(|m| {
-            if let Ok(m) = m {
-                matches.push(m);
-            }
-        });
-    matches
+    let mut db = db.inner().lock().expect("Failed to lock db");
+    db.get_matches().unwrap_or_else(|e| {error!("error retrieving matches {}", e); Vec::default()})
 }
 
 #[tauri::command]
@@ -146,7 +153,7 @@ fn get_match_details(
     let mut match_details = {
         let mut statement = db.conn.prepare("\
             SELECT \
-                m.id, m.controller_player_name, m.opponent_player_name, m.controller_seat_id = mr.winning_team_id \
+                m.id, m.controller_player_name, m.opponent_player_name, m.controller_seat_id = mr.winning_team_id, m.controller_seat_id \
             FROM matches m JOIN match_results mr ON m.id = mr.match_id \
             WHERE m.id = ?1 AND mr.result_scope = \"MatchScope_Match\" LIMIT 1
         ").unwrap();
@@ -158,13 +165,16 @@ fn get_match_details(
                 let controller_player_name: String = row.get(1)?;
                 let opponent_player_name: String = row.get(2)?;
                 let did_controller_win: bool = row.get(3)?;
+                let controller_seat_id: i32 = row.get(4)?;
                 Ok(MatchDetails {
                     id,
                     did_controller_win,
+                    controller_seat_id,
                     controller_player_name,
                     opponent_player_name,
                     primary_decklist: None,
                     differences: None,
+                    game_results: Vec::new(),
                     decklists: Vec::new(),
                     mulligans: Vec::new(),
                 })
@@ -191,38 +201,21 @@ fn get_match_details(
         }
     });
 
-    let mut mulligans_statement = db.conn.prepare("\
-        SELECT m.game_number, m.number_to_keep, m.hand, m.play_draw, m.opponent_identity, m.decision \
-        FROM mulligans m where m.match_id = ?1 \
-    ").unwrap();
+    let raw_mulligans = db.get_mulligans(&match_id).unwrap_or_else(|e| {
+        error!("Error retrieving Mulligans: {}", e);
+        Vec::default()
+    });
 
-    mulligans_statement
-        .query_map([&match_id], |row| {
-            let game_number = row.get(0)?;
-            let number_to_keep = row.get(1)?;
-            let hand: String = row.get(2)?;
-            let play_draw: String = row.get(3)?;
-            let opponent_identity: String = row.get(4)?;
-            let decision: String = row.get(5)?;
-            Ok(Mulligan::new(
-                &hand,
-                opponent_identity,
-                game_number,
-                number_to_keep,
-                play_draw,
-                decision,
-                &scryfall,
-                &db.cards_database,
-            ))
-        })
-        .map(|rows| rows.collect::<Vec<Result<Mulligan, _>>>())
-        .unwrap_or_default()
-        .into_iter()
-        .for_each(|mulligan| {
-            if let Ok(mulligan) = mulligan {
-                match_details.mulligans.push(mulligan);
-            }
-        });
+    match_details.mulligans = raw_mulligans.iter().map(|mulligan| {
+        Mulligan::from_mulligan_info(mulligan, &scryfall, &db.cards_database)
+    }).collect();
+
+    match_details.game_results = db.get_match_results(&match_id).unwrap_or_else(|e| {
+        error!("Error retrieving game results: {}", e);
+        Vec::default()
+    }).iter().map(|mr| {
+        GameResultDisplay::from_match_result(mr, match_details.controller_seat_id, &match_details.controller_player_name, &match_details.opponent_player_name)
+    }).collect();
 
     match_details
 }

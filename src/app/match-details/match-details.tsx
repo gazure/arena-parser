@@ -45,12 +45,18 @@ interface DeckDifference {
     removed: Card[];
 }
 
+interface GameResult {
+    game_number: number;
+    winning_player: string;
+}
+
 interface MatchDetails {
     id: number;
     did_controller_win: boolean;
     controller_player_name: string;
     opponent_player_name: string;
     primary_decklist: PrimaryDecklist | null;
+    game_results: GameResult[];
     differences: DeckDifference[] | null;
     decklists: DeckList[];
     mulligans: Mulligan[];
@@ -103,6 +109,7 @@ export default function MatchDetails() {
                 controller_player_name: "",
                 opponent_player_name: "",
                 primary_decklist: null,
+                game_results: [],
                 differences: null,
                 decklists: [],
                 mulligans: []
@@ -133,6 +140,11 @@ export default function MatchDetails() {
                         <p>Controller: {match.controller_player_name}</p>
                         <p>Opponent: {match.opponent_player_name}</p>
                         <p>Winner: {match.did_controller_win ? match.controller_player_name : match.opponent_player_name}</p>
+                        <div>
+                            {match.game_results.map((game_result, index) => (
+                                <p key={index}>Game {game_result.game_number}: {game_result.winning_player}</p>
+                            ))}
+                        </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                         {match.primary_decklist && (
