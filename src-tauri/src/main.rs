@@ -12,7 +12,7 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::api::path::home_dir;
 use tauri::{App, Manager, State};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::deck::{DeckDifference, GoldfishDeckDisplayRecord};
 use crate::scryfall::{Card, ScryfallDataManager};
@@ -266,9 +266,14 @@ fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
 
     let sm_arc = Arc::new(Mutex::new(scryfall_manager));
 
-    let player_log_path = home_dir()
-        .expect("Could not find player.log in home dir")
-        .join("AppData/LocalLow/Wizards of the Coast/MTGA/Player.log");
+    let home = home_dir().expect("could not find home directory");
+    let os = std::env::consts::OS;
+    let player_log_path = match os {
+        "macos" => home.join("Library/Logs/Wizards of the Coast/MTGA/Player.log"),
+        "windows" => home.join("AppData/LocalLow/Wizards of the Coast/MTGA/Player.log"),
+        _ => panic!("Unsupported OS: {}", os),
+    };
+    warn!("{player_log_path:?}");
 
     app.manage(sm_arc.clone());
     app.manage(db_arc.clone());
