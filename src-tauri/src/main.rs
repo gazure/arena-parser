@@ -6,8 +6,8 @@ use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
 
 use ap_core::cards::CardsDatabase;
-use ap_core::deck::Deck;
 use ap_core::match_insights::MatchInsightDB;
+use ap_core::models::deck::Deck;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::api::path::home_dir;

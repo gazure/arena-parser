@@ -76,8 +76,8 @@ checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 
 [[package]]
 name = "ap_core"
-version = "0.1.0"
-source = "git+https://github.com/gazure/arenaparser.git#4d54d44ed614dc33ede900f249727ae9acb9375a"
+version = "0.1.6"
+source = "git+https://github.com/gazure/arenaparser.git?tag=0.1.6#dfdcda7d7a402962b4be861f0e5b1f992f262ae5"
 dependencies = [
  "anyhow",
  "chrono",

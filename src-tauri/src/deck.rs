@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use ap_core::cards::CardsDatabase;
-use ap_core::deck::Deck;
+use ap_core::models::deck::Deck;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
