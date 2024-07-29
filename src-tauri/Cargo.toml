@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.0.2"
+version = "0.0.3"
 description = "MTGA Arena parsing companion app"
 authors = ["Grant Azure <azure.grant@gmail.com>"]
 license = ""
@@ -25,7 +25,7 @@ serde_json = "1.0"
 notify = "6.1.1"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.6.4", features = [] }
-ap_core = { git = "https://github.com/gazure/arenaparser.git" , tag = "0.1.2"}
+ap_core = { git = "https://github.com/gazure/arenaparser.git", tag = "0.1.6" }
 rusqlite = {  version = "0.31.0", features = ["bundled", "chrono"] }
 tokio = { version = "1.37.0", features = ["default"] }
 reqwest = { version = "0.12.4", features = ["blocking", "json"] }
