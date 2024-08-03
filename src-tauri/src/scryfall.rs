@@ -88,9 +88,13 @@ impl ScryfallDataManager {
         basics.insert("Swamp".to_string(), 90793);
         basics.insert("Mountain".to_string(), 90795);
         basics.insert("Forest".to_string(), 90797);
+        let client = reqwest::blocking::ClientBuilder::new()
+            .user_agent("ArenaParser/0.1")
+            .build()
+            .unwrap();
 
         Self {
-            client: reqwest::blocking::Client::new(),
+            client,
             conn,
             basics,
         }
