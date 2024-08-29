@@ -6,9 +6,9 @@ use ap_core::models::deck::Deck;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::scryfall::{Card, ScryfallDataManager};
+use crate::scryfall::Card;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CardType {
     Creature,
     Land,
@@ -18,6 +18,7 @@ pub enum CardType {
     Instant,
     Sorcery,
     Battle,
+    #[default]
     Unknown,
 }
 
@@ -37,11 +38,7 @@ pub(crate) struct GoldfishDeckDisplayRecord {
 }
 
 impl GoldfishDeckDisplayRecord {
-    pub fn from_decklist(
-        value: &Deck,
-        scryfall: &ScryfallDataManager,
-        cards_db: &CardsDatabase,
-    ) -> Self {
+    pub fn from_decklist(value: &Deck, cards_db: &CardsDatabase) -> Self {
         let archetype = "Unknown".to_string();
 
         let main_quantities = value.quantities();
@@ -50,7 +47,14 @@ impl GoldfishDeckDisplayRecord {
         let mut main_cards = main_quantities
             .keys()
             .map(|card_id| {
-                let mut card = scryfall.get_card_info(*card_id, cards_db);
+                let mut card: Card = cards_db
+                    .get(&card_id)
+                    .map(|db_entry| db_entry.into())
+                    .unwrap_or_else(|| {
+                        let mut card = Card::default();
+                        card.name = card_id.to_string();
+                        card
+                    });
                 card.quantity = *main_quantities.get(card_id).unwrap_or(&0u16);
                 card
             })
@@ -68,7 +72,14 @@ impl GoldfishDeckDisplayRecord {
             .keys()
             .copied()
             .map(|card_id| {
-                let mut card = scryfall.get_card_info(card_id, cards_db);
+                let mut card: Card = cards_db
+                    .get(&card_id)
+                    .map(|db_entry| db_entry.into())
+                    .unwrap_or_else(|| {
+                        let mut card = Card::default();
+                        card.name = card_id.to_string();
+                        card
+                    });
                 card.quantity = *sideboard_quantities.get(&card_id).unwrap_or(&0u16);
                 card
             })
@@ -108,35 +119,33 @@ impl DeckDifference {
         quantities(&missing)
     }
 
-    fn aggregate(
-        collection: &HashMap<i32, u16>,
-        scryfall: &ScryfallDataManager,
-        cards_database: &CardsDatabase,
-    ) -> Vec<Card> {
+    fn aggregate(collection: &HashMap<i32, u16>, cards_database: &CardsDatabase) -> Vec<Card> {
         collection
             .iter()
             .map(|(card_id, quantity)| {
-                let mut card = scryfall.get_card_info(*card_id, cards_database);
+                let mut card: Card = cards_database
+                    .get(&card_id)
+                    .map(|db_entry| db_entry.into())
+                    .unwrap_or_else(|| {
+                        let mut card = Card::default();
+                        card.name = card_id.to_string();
+                        card
+                    });
                 card.quantity = *quantity;
                 card
             })
             .sorted()
             .collect()
     }
-    pub fn difference(
-        deck1: &Deck,
-        deck2: &Deck,
-        scryfall: &ScryfallDataManager,
-        cards_database: &CardsDatabase,
-    ) -> Self {
+    pub fn difference(deck1: &Deck, deck2: &Deck, cards_database: &CardsDatabase) -> Self {
         let deck1_quantities = deck1.quantities();
         let deck2_quantities = deck2.quantities();
 
         let added = Self::missing_cards(&deck2_quantities, &deck1_quantities);
         let removed = Self::missing_cards(&deck1_quantities, &deck2_quantities);
 
-        let added = Self::aggregate(&added, scryfall, cards_database);
-        let removed = Self::aggregate(&removed, scryfall, cards_database);
+        let added = Self::aggregate(&added, cards_database);
+        let removed = Self::aggregate(&removed, cards_database);
 
         Self::new(added, removed)
     }
@@ -147,7 +156,8 @@ fn quantities(deck: &[i32]) -> HashMap<i32, u16> {
     let deck_quantities: HashMap<i32, u16> = unique
         .iter()
         .map(|ent_id| {
-            let quantity = u16::try_from(deck.iter().filter(|&id| id == ent_id).count()).unwrap_or_default();
+            let quantity =
+                u16::try_from(deck.iter().filter(|&id| id == ent_id).count()).unwrap_or_default();
             (*ent_id, quantity)
         })
         .collect();

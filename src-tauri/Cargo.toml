@@ -1,13 +1,13 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.5.0"
 description = "MTGA Arena parsing companion app"
 authors = ["Grant Azure <azure.grant@gmail.com>"]
 license = ""
 repository = ""
 default-run = "app"
 edition = "2021"
-rust-version = "1.79"
+rust-version = "1.80"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,6 +16,7 @@ tauri-build = { version = "1.5.2", features = [] }
 
 [dependencies]
 anyhow = "1.0.86"
+chrono = "0.4.38"
 crossbeam = "0.8.4"
 itertools = "0.13.0"
 crossbeam-channel = "0.5.13"
@@ -25,8 +26,8 @@ serde_json = "1.0"
 notify = "6.1.1"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.6.4", features = [] }
-ap_core = { git = "https://github.com/gazure/arenaparser.git", tag = "0.1.9" }
-rusqlite = {  version = "0.31.0", features = ["bundled", "chrono"] }
+ap_core = { git = "https://github.com/gazure/arenaparser.git", tag = "0.1.11" }
+rusqlite = { version = "0.31.0", features = ["bundled", "chrono"] }
 tokio = { version = "1.37.0", features = ["default"] }
 reqwest = { version = "0.12.4", features = ["blocking", "json"] }
 
@@ -34,4 +35,4 @@ reqwest = { version = "0.12.4", features = ["blocking", "json"] }
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
 # If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.
 # DO NOT REMOVE!!
-custom-protocol = [ "tauri/custom-protocol" ]
+custom-protocol = ["tauri/custom-protocol"]

@@ -17,14 +17,16 @@ use ap_core::models::deck::Deck;
 use ap_core::models::match_result::MatchResult;
 use ap_core::models::mtga_match::MTGAMatch;
 use ap_core::models::mulligan::MulliganInfo;
+use chrono::DateTime;
+use chrono::Utc;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::api::path::home_dir;
 use tauri::{App, Manager, State};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use crate::deck::{DeckDifference, GoldfishDeckDisplayRecord};
-use crate::scryfall::{Card, ScryfallDataManager};
+use crate::scryfall::Card;
 
 mod deck;
 mod ingest;
@@ -42,7 +44,6 @@ impl Display for APError {
 }
 
 impl Error for APError {}
-
 
 // TODO: Unify this with MulliganInfo in library crate
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -63,14 +64,20 @@ impl Mulligan {
         number_to_keep: i32,
         play_draw: String,
         decision: String,
-        scryfall: &ScryfallDataManager,
         cards_database: &CardsDatabase,
     ) -> Self {
         let hand = hand
             .split(',')
             .filter_map(|card_id_str| card_id_str.parse::<i32>().ok())
             .map(|card_id| {
-                let mut card = scryfall.get_card_info(card_id, cards_database);
+                let mut card: Card = cards_database
+                    .get(&card_id)
+                    .map(|db_entry| db_entry.into())
+                    .unwrap_or_else(|| {
+                        let mut card = Card::default();
+                        card.name = card_id.to_string();
+                        card
+                    });
                 card.quantity = 1;
                 card
             })
@@ -86,7 +93,10 @@ impl Mulligan {
         }
     }
 
-    pub fn from_mulligan_info(mulligan_info: &MulliganInfo, scryfall: &ScryfallDataManager, cards_database: &CardsDatabase) -> Self {
+    pub fn from_mulligan_info(
+        mulligan_info: &MulliganInfo,
+        cards_database: &CardsDatabase,
+    ) -> Self {
         Self::new(
             &mulligan_info.hand,
             mulligan_info.opponent_identity.clone(),
@@ -94,8 +104,7 @@ impl Mulligan {
             mulligan_info.number_to_keep,
             mulligan_info.play_draw.clone(),
             mulligan_info.decision.clone(),
-            scryfall,
-            cards_database
+            cards_database,
         )
     }
 }
@@ -107,18 +116,22 @@ struct GameResultDisplay {
 }
 
 impl GameResultDisplay {
-    pub fn from_match_result(mr: &MatchResult, controller_seat_id: i32, controller_player_name: &str, opponent_player_name: &str) -> Self {
+    pub fn from_match_result(
+        mr: &MatchResult,
+        controller_seat_id: i32,
+        controller_player_name: &str,
+        opponent_player_name: &str,
+    ) -> Self {
         Self {
             game_number: mr.game_number.unwrap_or_default(),
             winning_player: if mr.winning_team_id == controller_seat_id {
                 controller_player_name.into()
             } else {
                 opponent_player_name.into()
-            }
+            },
         }
     }
 }
-
 
 // TODO: Builder pattern, lol
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -128,6 +141,7 @@ struct MatchDetails {
     controller_seat_id: i32,
     controller_player_name: String,
     opponent_player_name: String,
+    created_at: DateTime<Utc>,
     primary_decklist: Option<GoldfishDeckDisplayRecord>,
     differences: Option<Vec<DeckDifference>>,
     game_results: Vec<GameResultDisplay>,
@@ -138,21 +152,19 @@ struct MatchDetails {
 #[tauri::command]
 fn get_matches(db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> Vec<MTGAMatch> {
     let mut db = db.inner().lock().expect("Failed to lock db");
-    db.get_matches().unwrap_or_else(|e| {error!("error retrieving matches {}", e); Vec::default()})
+    db.get_matches().unwrap_or_else(|e| {
+        error!("error retrieving matches {}", e);
+        Vec::default()
+    })
 }
 
 #[tauri::command]
-fn get_match_details(
-    match_id: String,
-    scryfall: State<'_, Arc<Mutex<ScryfallDataManager>>>,
-    db: State<'_, Arc<Mutex<MatchInsightDB>>>,
-) -> MatchDetails {
+fn get_match_details(match_id: String, db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> MatchDetails {
     let mut db = db.inner().lock().unwrap();
-    let scryfall = scryfall.inner().lock().unwrap();
     let mut match_details = {
         let mut statement = db.conn.prepare("\
             SELECT \
-                m.id, m.controller_player_name, m.opponent_player_name, m.controller_seat_id = mr.winning_team_id, m.controller_seat_id \
+                m.id, m.controller_player_name, m.opponent_player_name, m.controller_seat_id = mr.winning_team_id, m.controller_seat_id, m.created_at \
             FROM matches m JOIN match_results mr ON m.id = mr.match_id \
             WHERE m.id = ?1 AND mr.result_scope = \"MatchScope_Match\" LIMIT 1
         ").unwrap();
@@ -165,12 +177,14 @@ fn get_match_details(
                 let opponent_player_name: String = row.get(2)?;
                 let did_controller_win: bool = row.get(3)?;
                 let controller_seat_id: i32 = row.get(4)?;
+                let created_at: DateTime<Utc> = row.get(5)?;
                 Ok(MatchDetails {
                     id,
                     did_controller_win,
                     controller_seat_id,
                     controller_player_name,
                     opponent_player_name,
+                    created_at,
                     primary_decklist: None,
                     differences: None,
                     game_results: Vec::new(),
@@ -187,12 +201,12 @@ fn get_match_details(
     match_details.decklists = db.get_decklists(&match_id).unwrap_or_default();
 
     match_details.primary_decklist = match_details.decklists.first().map(|primary_decklist| {
-        GoldfishDeckDisplayRecord::from_decklist(primary_decklist, &scryfall, &db.cards_database)
+        GoldfishDeckDisplayRecord::from_decklist(primary_decklist, &db.cards_database)
     });
 
     match_details.decklists.windows(2).for_each(|pair| {
         if let [prev, next] = pair {
-            let diff = DeckDifference::difference(prev, next, &scryfall, &db.cards_database);
+            let diff = DeckDifference::difference(prev, next, &db.cards_database);
             match_details
                 .differences
                 .get_or_insert_with(Vec::new)
@@ -205,27 +219,29 @@ fn get_match_details(
         Vec::default()
     });
 
-    match_details.mulligans = raw_mulligans.iter().map(|mulligan| {
-        Mulligan::from_mulligan_info(mulligan, &scryfall, &db.cards_database)
-    }).collect();
+    match_details.mulligans = raw_mulligans
+        .iter()
+        .map(|mulligan| Mulligan::from_mulligan_info(mulligan, &db.cards_database))
+        .collect();
 
-    match_details.game_results = db.get_match_results(&match_id).unwrap_or_else(|e| {
-        error!("Error retrieving game results: {}", e);
-        Vec::default()
-    }).iter().map(|mr| {
-        GameResultDisplay::from_match_result(mr, match_details.controller_seat_id, &match_details.controller_player_name, &match_details.opponent_player_name)
-    }).collect();
+    match_details.game_results = db
+        .get_match_results(&match_id)
+        .unwrap_or_else(|e| {
+            error!("Error retrieving game results: {}", e);
+            Vec::default()
+        })
+        .iter()
+        .map(|mr| {
+            GameResultDisplay::from_match_result(
+                mr,
+                match_details.controller_seat_id,
+                &match_details.controller_player_name,
+                &match_details.opponent_player_name,
+            )
+        })
+        .collect();
 
     match_details
-}
-#[tauri::command]
-fn clear_scryfall_cache(
-    scryfall: State<'_, Arc<Mutex<ScryfallDataManager>>>,
-) -> Result<(), APError> {
-    let scryfall = scryfall.inner().lock().unwrap();
-    scryfall.clear().map_err(|_| APError {
-        message: "Failed to clear scryfall cache".to_string(),
-    })
 }
 
 fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
@@ -247,16 +263,6 @@ fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
     db.init().expect("Failed to initialize database");
     let db_arc = Arc::new(Mutex::new(db));
 
-    let scryfall_cache_db_path = app_data_dir.join("scryfall_cache.db");
-    let conn =
-        Connection::open(scryfall_cache_db_path).expect("Failed to open scryfall cache database");
-    let scryfall_manager = ScryfallDataManager::new(conn);
-    scryfall_manager
-        .init()
-        .expect("Failed to initialize scryfall cache database");
-
-    let sm_arc = Arc::new(Mutex::new(scryfall_manager));
-
     let home = home_dir().expect("could not find home directory");
     let os = std::env::consts::OS;
     let player_log_path = match os {
@@ -264,27 +270,22 @@ fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
         "windows" => home.join("AppData/LocalLow/Wizards of the Coast/MTGA/Player.log"),
         _ => panic!("Unsupported OS: {}", os),
     };
-    warn!("{player_log_path:?}");
 
-    app.manage(sm_arc.clone());
     app.manage(db_arc.clone());
-
     ingest::start_processing_logs(db_arc.clone(), player_log_path);
-
     Ok(())
 }
 
 fn main() {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::DEBUG)
         .init();
 
     tauri::Builder::default()
         .setup(setup)
         .invoke_handler(tauri::generate_handler![
             get_matches,
-            get_match_details,
-            clear_scryfall_cache
+            get_match_details
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

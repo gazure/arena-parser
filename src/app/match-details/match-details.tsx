@@ -54,6 +54,7 @@ interface MatchDetails {
   did_controller_win: boolean;
   controller_player_name: string;
   opponent_player_name: string;
+  created_at: string;
   primary_decklist: PrimaryDecklist | null;
   game_results: GameResult[];
   differences: DeckDifference[] | null;
@@ -65,6 +66,14 @@ interface Card {
   name: string;
   quantity: number;
   mana_value: number;
+  image_uri: string;
+}
+
+interface CardEntryProps {
+  identifier: string;
+  key: number;
+  card: Card;
+  includeManaValue: boolean;
 }
 
 interface SubTypeListProps {
@@ -82,14 +91,45 @@ const SubTypeList: React.FC<SubTypeListProps> = ({
     <div className={"flex-wrap p-2 grid"}>
       <h5 className="text-lg font-semibold">{header}</h5>
       {cards.map((card, index) => (
-        <p key={index}>
-          {card.quantity} {card.name}
-          {includeManaValue && ` - ${card.mana_value}`}
-        </p>
+        <CardEntry identifier={`${header}-${index}`} key={index} card={card} includeManaValue={includeManaValue} />
       ))}
     </div>
   );
 };
+
+const CardEntry: React.FC<CardEntryProps> = ({ identifier, key, card, includeManaValue }) => {
+  return (
+    <div id={identifier} key={key} className="flex flex-row">
+      <p className="hover:cursor-pointer relative group"
+           onMouseEnter={() => {
+             const img = document.createElement('img');
+             const containerDiv = document.getElementById(identifier);
+             if (containerDiv === null) return;
+             const child = containerDiv.children[0];
+             const rect = child.getBoundingClientRect()
+             const x = (rect ? rect.right: 0) + 10;
+             const y = (rect ? rect.top: 0) + 10;
+             img.src = card.image_uri;
+             img.className = `absolute h-auto w-auto0 z-1000`;
+             img.style.top = `${y}px`;
+             img.style.left = `${x}px`;
+             img.style.maxWidth = '200px';
+             img.style.maxHeight = '300px';
+             img.alt = card.name;
+             img.id = `hover-image-${card.name}`;
+             containerDiv.appendChild(img);
+           }}
+           onMouseLeave={() => {
+             const img = document.getElementById(`hover-image-${card.name}`);
+             if (img) img.remove();
+           }}>
+        {card.quantity} {card.name}
+          {includeManaValue && ` - ${card.mana_value}`}
+      </p>
+    </div>
+  );
+};
+
 
 export default function MatchDetails() {
   const [match, setMatch] = useState<MatchDetails | null>(null);
@@ -109,6 +149,7 @@ export default function MatchDetails() {
         did_controller_win: false,
         controller_player_name: "",
         opponent_player_name: "",
+        created_at: "",
         primary_decklist: null,
         game_results: [],
         differences: null,
@@ -158,6 +199,7 @@ export default function MatchDetails() {
               VS. {match.opponent_player_name}
             </h1>
             <p className="float-right">{match.id}</p>
+            <p>{match.created_at}</p>
             <p>Controller: {match.controller_player_name}</p>
             <p>Opponent: {match.opponent_player_name}</p>
             <p>
@@ -256,20 +298,16 @@ export default function MatchDetails() {
               <div>
                 <h3>Sideboard Decisions</h3>
                 <div className="grid grid-cols-1 gap-2">
-                  {match.differences.map((difference, index) => (
-                    <div key={index}>
-                      <h4>Game {index + 2}</h4>
+                  {match.differences.map((difference, game_idx) => (
+                    <div key={game_idx}>
+                      <h4>Game {game_idx + 2}</h4>
                       <h5>Added</h5>
                       {difference.added.map((card, index) => (
-                        <p key={index} className="ml-6">
-                          {card.quantity} {card.name}
-                        </p>
+                        <CardEntry identifier={`Sideboard-added-${game_idx}-${index}`} key={index} card={card} includeManaValue={false} />
                       ))}
                       <h5>Removed</h5>
                       {difference.removed.map((card, index) => (
-                        <p key={index} className="ml-6">
-                          {card.quantity} {card.name}
-                        </p>
+                        <CardEntry identifier={`Sideboard-removed-${game_idx}-${index}`} key={index} card={card} includeManaValue={false} />
                       ))}
                     </div>
                   ))}
@@ -280,16 +318,14 @@ export default function MatchDetails() {
           <div>
             <h2 className="text-xl font-bold mb-2">Mulligans</h2>
             <div className="grid grid-cols-3 gap-4">
-              {mulligans.map((mulligan_list, index) => (
-                <div key={index}>
-                  {mulligan_list.map((mulligan, index) => (
-                    <div key={index}>
+              {mulligans.map((mulligan_list, game_idx) => (
+                <div key={game_idx}>
+                  {mulligan_list.map((mulligan, mulligan_idx) => (
+                    <div key={mulligan_idx}>
                       <h3>Game {mulligan.game_number}</h3>
                       <p>Hand</p>
                       {mulligan.hand.map((card, index) => (
-                        <p key={index} className="ml-6">
-                          {card.name}
-                        </p>
+                        <CardEntry identifier={`mulligan-${game_idx}-${mulligan_idx}-${index}`} key={index} card={card} includeManaValue={false} />
                       ))}
                       <p>Opponent Identity: {mulligan.opponent_identity}</p>
                       <p>Number to Keep: {mulligan.number_to_keep}</p>
