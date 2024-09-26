@@ -73,10 +73,11 @@ impl PartialOrd<Self> for Card {
 
 impl From<&CardDbEntry> for Card {
     fn from(entry: &CardDbEntry) -> Self {
-        let name = if let Some(card_faces) = &entry.card_faces {
-            card_faces[0].name.clone()
+        let (name, type_line) = if let Some(card_faces) = &entry.card_faces {
+            let front_face = &card_faces[0];
+            (front_face.name.clone(), front_face.type_line.clone())
         } else {
-            entry.name.clone()
+            (entry.name.clone(), entry.type_line.clone())
         };
         let image_uri = if let Some(image_uri) = &entry.image_uri {
             image_uri.clone()
@@ -99,7 +100,7 @@ impl From<&CardDbEntry> for Card {
 
         Self {
             name,
-            card_type: card_type_from_type_line(&entry.type_line),
+            card_type: card_type_from_type_line(&type_line),
             mana_value: entry.cmc as u16,
             quantity: 1,
             image_uri: image_uri.clone(),

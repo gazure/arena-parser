@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "arena-parser",
-    "version": "0.6.0"
+    "version": "0.7.0"
   },
   "tauri": {
     "allowlist": {
@@ -22,14 +22,13 @@
       },
       "externalBin": [],
       "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
+        "icons/witch32.png",
+        "icons/witch.png",
+        "icons/witch128.png",
+        "icons/witch32.ico"
       ],
       "identifier": "com.gazure.arenaparser.dev",
-      "longDescription": "",
+      "longDescription": "Monitors MTGA logs and aggregates match data for analysis.",
       "macOS": {
         "entitlements": null,
         "exceptionDomain": "",
@@ -57,10 +56,10 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "height": 1200,
         "resizable": true,
-        "title": "arena-parser",
-        "width": 800
+        "title": "Arena Buddy",
+        "width": 1200
       }
     ]
   }

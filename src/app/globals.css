@@ -6,24 +6,21 @@
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
+  --hover-color: 200, 200, 200;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground-rgb: 255, 255, 255;
+    --foreground-rgb: 245, 245, 245;
     --background-start-rgb: 0, 0, 0;
     --background-end-rgb: 0, 0, 0;
+    --hover-color: 50, 50, 50;
   }
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background-color: rgb(var(--background-start-rgb));
 }
 
 @layer utilities {
@@ -34,10 +31,9 @@ body {
 
 table {
   border-collapse: collapse;
-  width: 100%;
+  width: 70%;
 }
 
 th, td {
-  border: 1px solid rgb(var(--foreground-rgb));
   padding: 0.5rem;
 }

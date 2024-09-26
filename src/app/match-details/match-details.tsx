@@ -109,8 +109,10 @@ const CardEntry: React.FC<CardEntryProps> = ({ identifier, key, card, includeMan
              const rect = child.getBoundingClientRect()
              const x = (rect ? rect.right: 0) + 10;
              const y = (rect ? rect.top: 0) + 10;
+             img.style.zIndex = '1000';
+             img.style.position = 'fixed';
              img.src = card.image_uri;
-             img.className = `absolute h-auto w-auto0 z-1000`;
+             img.className = `absolute h-auto w-auto0`;
              img.style.top = `${y}px`;
              img.style.left = `${x}px`;
              img.style.maxWidth = '200px';
@@ -137,7 +139,7 @@ export default function MatchDetails() {
     let params = new URLSearchParams(document.location.search);
     let id = params.get("id");
     if (id !== null) {
-      invoke<MatchDetails>("get_match_details", { matchId: id })
+      invoke<MatchDetails>("command_match_details", { matchId: id })
         .then((result) => {
           console.log(result);
           setMatch(result);

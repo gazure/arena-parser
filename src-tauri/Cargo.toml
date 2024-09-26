@@ -1,13 +1,13 @@
 [package]
-name = "app"
-version = "0.5.0"
-description = "MTGA Arena parsing companion app"
+name = "arena-buddy"
+version = "0.7.0"
+description = "MTGA Arena companion app"
 authors = ["Grant Azure <azure.grant@gmail.com>"]
-license = ""
-repository = ""
-default-run = "app"
+license = "MIT"
+repository = "https://github.com/gazure/arena-parser"
+default-run = "arena-buddy"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.81"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,6 +18,7 @@ tauri-build = { version = "1.5.2", features = [] }
 anyhow = "1.0.86"
 chrono = "0.4.38"
 crossbeam = "0.8.4"
+indoc = "2.0.5"
 itertools = "0.13.0"
 crossbeam-channel = "0.5.13"
 tracing = "0.1.40"
@@ -26,7 +27,7 @@ serde_json = "1.0"
 notify = "6.1.1"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.6.4", features = [] }
-ap_core = { git = "https://github.com/gazure/arenaparser.git", tag = "0.1.11" }
+ap_core = { git = "https://github.com/gazure/arenaparser.git", tag = "0.1.14" }
 rusqlite = { version = "0.31.0", features = ["bundled", "chrono"] }
 tokio = { version = "1.37.0", features = ["default"] }
 reqwest = { version = "0.12.4", features = ["blocking", "json"] }

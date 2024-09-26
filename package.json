@@ -1,6 +1,6 @@
 {
-  "name": "arena-parser",
-  "version": "0.6.0",
+  "name": "arena-buddy",
+  "version": "0.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
