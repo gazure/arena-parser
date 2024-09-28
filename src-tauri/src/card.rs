@@ -28,20 +28,29 @@ impl Display for CardType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Card {
     pub name: String,
-    pub card_type: CardType,
-    pub mana_value: u16,
+    pub type_field: CardType,
+    pub mana_value: i16,
     pub quantity: u16,
     pub image_uri: String,
+}
+
+impl Card {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for Card {
     fn default() -> Self {
         Self {
             name: "Unknown".to_string(),
-            card_type: CardType::Unknown,
+            type_field: CardType::Unknown,
             mana_value: 0,
             quantity: 0,
-            image_uri: "".to_string(),
+            image_uri: String::new(),
         }
     }
 }
@@ -85,22 +94,18 @@ impl From<&CardDbEntry> for Card {
             entry
                 .card_faces
                 .as_ref()
-                .map(|faces| {
-                    faces
-                        .get(0)
-                        .map(|face| face.image_uri.as_ref().map(|uri| uri.clone()))
-                })
-                .flatten()
+                .and_then(|faces| faces.first().map(|face| face.image_uri.clone()))
                 .flatten()
                 .as_ref()
-                .unwrap_or(&&"".to_string())
+                .unwrap_or(&String::new())
                 .to_string()
         };
 
         Self {
             name,
-            card_type: card_type_from_type_line(&type_line),
-            mana_value: entry.cmc as u16,
+            type_field: card_type_from_type_line(&type_line),
+            #[allow(clippy::cast_possible_truncation)]
+            mana_value: entry.cmc as i16,
             quantity: 1,
             image_uri: image_uri.clone(),
         }
