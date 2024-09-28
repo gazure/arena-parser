@@ -14,7 +14,11 @@ use ap_core::cards::CardsDatabase;
 use ap_core::match_insights::MatchInsightDB;
 use rusqlite::Connection;
 use tauri::{App, Manager, path::BaseDirectory};
-use tracing::info;
+use tracing::{info, Level};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 mod deck;
 mod ingest;
@@ -23,16 +27,31 @@ mod commands;
 
 
 fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
-    let cards_path = app.path()
-        .resolve("./data/cards-full.json", BaseDirectory::Resource)
-        .expect("Failed to find cards database");
-    let cards_db = CardsDatabase::new(cards_path).expect("Failed to load cards database");
-
+    let registry = tracing_subscriber::registry();
     let app_data_dir = app
         .path()
         .app_data_dir()
         .expect("Failed to get app data dir");
     std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data directory");
+
+    let log_dir = app_data_dir.join("logs");
+    std::fs::create_dir_all(&log_dir).expect("Failed to create log directory");
+
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix("arena-buddy")
+        .build(log_dir)
+        .expect("log file appender")
+        .with_max_level(Level::INFO);
+
+    registry
+        .with(tracing_subscriber::fmt::layer().with_writer(file_appender))
+        .init();
+
+    let cards_path = app.path()
+        .resolve("./data/cards-full.json", BaseDirectory::Resource)
+        .expect("Failed to find cards database");
+    let cards_db = CardsDatabase::new(cards_path).expect("Failed to load cards database");
 
     let db_path = app_data_dir.join("matches.db");
     info!("Database path: {}", db_path.to_string_lossy());
@@ -56,10 +75,6 @@ fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
 }
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
-
     tauri::Builder::default()
         .setup(setup)
         .invoke_handler(tauri::generate_handler![commands::matches::command_matches, commands::match_details::command_match_details])
