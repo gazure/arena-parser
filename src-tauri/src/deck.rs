@@ -1,43 +1,20 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 
 use ap_core::cards::CardsDatabase;
 use ap_core::models::deck::Deck;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::scryfall::Card;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum CardType {
-    Creature,
-    Land,
-    Artifact,
-    Enchantment,
-    Planeswalker,
-    Instant,
-    Sorcery,
-    Battle,
-    #[default]
-    Unknown,
-}
-
-impl Display for CardType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        serde_json::to_string(self)
-            .unwrap_or("Unknown".to_string())
-            .fmt(f)
-    }
-}
+use crate::card::{Card, CardType};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub(crate) struct GoldfishDeckDisplayRecord {
+pub(crate) struct DeckDisplayRecord {
     pub archetype: String,
     pub main_deck: HashMap<CardType, Vec<Card>>,
     pub sideboard: Vec<Card>,
 }
 
-impl GoldfishDeckDisplayRecord {
+impl DeckDisplayRecord {
     pub fn from_decklist(value: &Deck, cards_db: &CardsDatabase) -> Self {
         let archetype = "Unknown".to_string();
 

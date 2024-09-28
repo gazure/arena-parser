@@ -13,25 +13,23 @@ use std::sync::{Arc, Mutex};
 use ap_core::cards::CardsDatabase;
 use ap_core::match_insights::MatchInsightDB;
 use rusqlite::Connection;
-use tauri::api::path::home_dir;
-use tauri::{App, Manager};
+use tauri::{App, Manager, path::BaseDirectory};
 use tracing::info;
 
 mod deck;
 mod ingest;
-mod scryfall;
+mod card;
 mod commands;
 
 
 fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
-    let cards_path = app
-        .path_resolver()
-        .resolve_resource("./data/cards-full.json")
-        .unwrap();
+    let cards_path = app.path()
+        .resolve("./data/cards-full.json", BaseDirectory::Resource)
+        .expect("Failed to find cards database");
     let cards_db = CardsDatabase::new(cards_path).expect("Failed to load cards database");
 
     let app_data_dir = app
-        .path_resolver()
+        .path()
         .app_data_dir()
         .expect("Failed to get app data dir");
     std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data directory");
@@ -43,7 +41,7 @@ fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
     db.init().expect("Failed to initialize database");
     let db_arc = Arc::new(Mutex::new(db));
 
-    let home = home_dir().expect("could not find home directory");
+    let home = app.path().home_dir().expect("could not find home directory");
     let os = std::env::consts::OS;
     let player_log_path = match os {
         "macos" => home.join("Library/Logs/Wizards of the Coast/MTGA/Player.log"),

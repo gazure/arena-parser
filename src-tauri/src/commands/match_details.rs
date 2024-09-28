@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use tracing::{error, info};
 
-use crate::deck::{DeckDifference, GoldfishDeckDisplayRecord};
-use crate::scryfall::Card;
-// TODO: Unify this with MulliganInfo in library crate
+use crate::deck::{DeckDifference, DeckDisplayRecord};
+use crate::card::Card;
+
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 struct Mulligan {
     hand: Vec<Card>,
@@ -110,7 +110,7 @@ pub(crate) struct MatchDetails {
     controller_player_name: String,
     opponent_player_name: String,
     created_at: DateTime<Utc>,
-    primary_decklist: Option<GoldfishDeckDisplayRecord>,
+    primary_decklist: Option<DeckDisplayRecord>,
     differences: Option<Vec<DeckDifference>>,
     game_results: Vec<GameResultDisplay>,
     decklists: Vec<Deck>,
@@ -161,7 +161,7 @@ pub(crate) fn command_match_details(match_id: String, db: State<'_, Arc<Mutex<Ma
     match_details.decklists = db.get_decklists(&match_id).unwrap_or_default();
 
     match_details.primary_decklist = match_details.decklists.first().map(|primary_decklist| {
-        GoldfishDeckDisplayRecord::from_decklist(primary_decklist, &db.cards_database)
+        DeckDisplayRecord::from_decklist(primary_decklist, &db.cards_database)
     });
 
     match_details.decklists.windows(2).for_each(|pair| {
