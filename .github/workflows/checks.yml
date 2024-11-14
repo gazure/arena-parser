@@ -32,6 +32,9 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
+      - name: Create out directory
+        shell: bash
+        run: mkdir -p ./out
       - name: Check lints
         working-directory: ./src-tauri
         run: |
@@ -47,6 +50,9 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
+      - name: Create out directory
+        shell: bash
+        run: mkdir -p ./out
       - name: Check formatting
         working-directory: ./src-tauri
         run: cargo fmt --all --check

@@ -18,7 +18,7 @@ jobs:
 
   tests:
     name: Tests
-    needs: [ checks ]
+    needs: [checks]
     runs-on: ubuntu-latest
 
     steps:
@@ -30,6 +30,10 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Create out directory
+        shell: bash
+        run: mkdir -p ./out
+
       - name: Run cargo tests
         working-directory: ./src-tauri
         env:
@@ -39,7 +43,7 @@ jobs:
 
   build:
     name: ${{ matrix.platform }}
-    needs: [ checks ]
+    needs: [checks]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -69,11 +73,15 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: "lts/*"
 
       - name: Install Next.js
         run: |
           npm install next
+
+      - name: Create out directory
+        shell: bash
+        run: mkdir -p ./out
 
       - name: Build
         env:
