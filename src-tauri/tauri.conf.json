@@ -2,57 +2,50 @@
   "build": {
     "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run dev",
-    "devPath": "http://localhost:3000",
-    "distDir": "../out"
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../out"
   },
-  "package": {
-    "productName": "arena-parser",
-    "version": "0.7.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "copyright": "",
+    "targets": "all",
+    "externalBin": [],
+    "icon": [
+      "icons/witch32.png",
+      "icons/witch.png",
+      "icons/witch128.png",
+      "icons/witch32.ico"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     },
-    "bundle": {
-      "active": true,
-      "category": "DeveloperTool",
-      "copyright": "",
+    "longDescription": "Monitors MTGA logs and aggregates match data for analysis.",
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null
+    },
+    "resources": [
+      "./data/cards-full.json"
+    ],
+    "shortDescription": "",
+    "linux": {
       "deb": {
         "depends": []
-      },
-      "externalBin": [],
-      "icon": [
-        "icons/witch32.png",
-        "icons/witch.png",
-        "icons/witch128.png",
-        "icons/witch32.ico"
-      ],
-      "identifier": "com.gazure.arenaparser.dev",
-      "longDescription": "Monitors MTGA logs and aggregates match data for analysis.",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": null
-      },
-      "resources": [
-        "./data/cards-full.json"
-      ],
-      "shortDescription": "",
-      "targets": "all",
-      "windows": {
-        "certificateThumbprint": null,
-        "digestAlgorithm": "sha256",
-        "timestampUrl": ""
       }
-    },
-    "security": {
-      "csp": null
-    },
-    "updater": {
-      "active": false
-    },
+    }
+  },
+  "productName": "arena-parser",
+  "mainBinaryName": "arena-parser",
+  "version": "0.7.0",
+  "identifier": "com.gazure.arenaparser.dev",
+  "plugins": {},
+  "app": {
     "windows": [
       {
         "fullscreen": false,
@@ -61,6 +54,9 @@
         "title": "Arena Buddy",
         "width": 1200
       }
-    ]
+    ],
+    "security": {
+      "csp": null
+    }
   }
 }

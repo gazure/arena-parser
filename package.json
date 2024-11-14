@@ -6,20 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^1.5.6",
-    "next": "^14.2.3",
-    "react": "^18",
-    "react-dom": "^18"
+    "@tauri-apps/api": "^2.0.0-rc.0",
+    "next": "^14.2.13",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0-rc.16",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
-    "eslint-config-next": "14.2.3",
+    "eslint-config-next": "^14.2.13",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"

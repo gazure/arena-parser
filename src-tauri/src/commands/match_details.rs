@@ -5,15 +5,15 @@ use ap_core::match_insights::MatchInsightDB;
 use ap_core::models::deck::Deck;
 use ap_core::models::match_result::MatchResult;
 use ap_core::models::mulligan::MulliganInfo;
-use chrono::{Utc,DateTime};
+use chrono::{DateTime, Utc};
 use indoc::indoc;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tracing::{error, info};
 
-use crate::deck::{DeckDifference, GoldfishDeckDisplayRecord};
-use crate::scryfall::Card;
-// TODO: Unify this with MulliganInfo in library crate
+use crate::card::Card;
+use crate::deck::{DeckDifference, DeckDisplayRecord};
+
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 struct Mulligan {
     hand: Vec<Card>,
@@ -37,17 +37,10 @@ impl Mulligan {
         let hand = hand
             .split(',')
             .filter_map(|card_id_str| card_id_str.parse::<i32>().ok())
-            .map(|card_id| {
-                let mut card: Card = cards_database
+            .map(|card_id| -> Card {
+                cards_database
                     .get(&card_id)
-                    .map(|db_entry| db_entry.into())
-                    .unwrap_or_else(|| {
-                        let mut card = Card::default();
-                        card.name = card_id.to_string();
-                        card
-                    });
-                card.quantity = 1;
-                card
+                    .map_or_else(|| Card::new(card_id.to_string()), std::convert::Into::into)
             })
             .collect();
 
@@ -91,7 +84,7 @@ impl GameResultDisplay {
         opponent_player_name: &str,
     ) -> Self {
         Self {
-            game_number: mr.game_number.unwrap_or_default(),
+            game_number: mr.game_number,
             winning_player: if mr.winning_team_id == controller_seat_id {
                 controller_player_name.into()
             } else {
@@ -110,7 +103,7 @@ pub(crate) struct MatchDetails {
     controller_player_name: String,
     opponent_player_name: String,
     created_at: DateTime<Utc>,
-    primary_decklist: Option<GoldfishDeckDisplayRecord>,
+    primary_decklist: Option<DeckDisplayRecord>,
     differences: Option<Vec<DeckDifference>>,
     game_results: Vec<GameResultDisplay>,
     decklists: Vec<Deck>,
@@ -118,8 +111,17 @@ pub(crate) struct MatchDetails {
 }
 
 #[tauri::command]
-pub(crate) fn command_match_details(match_id: String, db: State<'_, Arc<Mutex<MatchInsightDB>>>) -> MatchDetails {
-    let mut db = db.inner().lock().unwrap();
+pub(crate) fn command_match_details(
+    match_id: String,
+    db: State<'_, Arc<Mutex<MatchInsightDB>>>,
+) -> MatchDetails {
+    let db_lock_result = db.inner().lock();
+    if let Err(e) = db_lock_result {
+        error!("Failed to obtain db lock: {}", e);
+        return MatchDetails::default();
+    }
+    let mut db = db_lock_result.expect("handled error case");
+
     let mut match_details = {
         let mut statement = db.conn.prepare(indoc! {r#"
             SELECT
@@ -161,7 +163,7 @@ pub(crate) fn command_match_details(match_id: String, db: State<'_, Arc<Mutex<Ma
     match_details.decklists = db.get_decklists(&match_id).unwrap_or_default();
 
     match_details.primary_decklist = match_details.decklists.first().map(|primary_decklist| {
-        GoldfishDeckDisplayRecord::from_decklist(primary_decklist, &db.cards_database)
+        DeckDisplayRecord::from_decklist(primary_decklist, &db.cards_database)
     });
 
     match_details.decklists.windows(2).for_each(|pair| {

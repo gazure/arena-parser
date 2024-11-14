@@ -1,43 +1,20 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 
 use ap_core::cards::CardsDatabase;
 use ap_core::models::deck::Deck;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::scryfall::Card;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum CardType {
-    Creature,
-    Land,
-    Artifact,
-    Enchantment,
-    Planeswalker,
-    Instant,
-    Sorcery,
-    Battle,
-    #[default]
-    Unknown,
-}
-
-impl Display for CardType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        serde_json::to_string(self)
-            .unwrap_or("Unknown".to_string())
-            .fmt(f)
-    }
-}
+use crate::card::{Card, CardType};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub(crate) struct GoldfishDeckDisplayRecord {
+pub(crate) struct DeckDisplayRecord {
     pub archetype: String,
     pub main_deck: HashMap<CardType, Vec<Card>>,
     pub sideboard: Vec<Card>,
 }
 
-impl GoldfishDeckDisplayRecord {
+impl DeckDisplayRecord {
     pub fn from_decklist(value: &Deck, cards_db: &CardsDatabase) -> Self {
         let archetype = "Unknown".to_string();
 
@@ -49,19 +26,14 @@ impl GoldfishDeckDisplayRecord {
             .map(|card_id| {
                 let mut card: Card = cards_db
                     .get(&card_id)
-                    .map(|db_entry| db_entry.into())
-                    .unwrap_or_else(|| {
-                        let mut card = Card::default();
-                        card.name = card_id.to_string();
-                        card
-                    });
+                    .map_or_else(|| Card::new(card_id.to_string()), std::convert::Into::into);
                 card.quantity = *main_quantities.get(card_id).unwrap_or(&0u16);
                 card
             })
             .fold(
                 HashMap::new(),
                 |mut acc: HashMap<CardType, Vec<Card>>, card| {
-                    let card_type = card.card_type.clone();
+                    let card_type = card.type_field.clone();
                     acc.entry(card_type).or_default().push(card);
                     acc
                 },
@@ -74,12 +46,7 @@ impl GoldfishDeckDisplayRecord {
             .map(|card_id| {
                 let mut card: Card = cards_db
                     .get(&card_id)
-                    .map(|db_entry| db_entry.into())
-                    .unwrap_or_else(|| {
-                        let mut card = Card::default();
-                        card.name = card_id.to_string();
-                        card
-                    });
+                    .map_or_else(|| Card::new(card_id.to_string()), std::convert::Into::into);
                 card.quantity = *sideboard_quantities.get(&card_id).unwrap_or(&0u16);
                 card
             })
@@ -122,15 +89,10 @@ impl DeckDifference {
     fn aggregate(collection: &HashMap<i32, u16>, cards_database: &CardsDatabase) -> Vec<Card> {
         collection
             .iter()
-            .map(|(card_id, quantity)| {
-                let mut card: Card = cards_database
+            .map(|(card_id, quantity)| -> Card {
+                let mut card = cards_database
                     .get(&card_id)
-                    .map(|db_entry| db_entry.into())
-                    .unwrap_or_else(|| {
-                        let mut card = Card::default();
-                        card.name = card_id.to_string();
-                        card
-                    });
+                    .map_or_else(|| Card::new(card_id.to_string()), std::convert::Into::into);
                 card.quantity = *quantity;
                 card
             })
