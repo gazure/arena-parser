@@ -18,6 +18,9 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
+      - name: Create out directory
+        shell: bash
+        run: mkdir -p ./out
       - name: Check the project
         working-directory: ./src-tauri
         run: |

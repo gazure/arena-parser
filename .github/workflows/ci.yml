@@ -30,6 +30,10 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Install tauri cli
+        run : |
+          cargo install tauri-cli --version "^2.0.0" --locked
+
       - name: Create out directory
         shell: bash
         run: mkdir -p ./out
@@ -78,6 +82,10 @@ jobs:
       - name: Install Next.js
         run: |
           npm install next
+
+      - name: Install tauri cli
+        run : |
+          cargo install tauri-cli --version "^2.0.0" --locked
 
       - name: Create out directory
         shell: bash
