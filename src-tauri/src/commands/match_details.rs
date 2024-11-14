@@ -84,7 +84,7 @@ impl GameResultDisplay {
         opponent_player_name: &str,
     ) -> Self {
         Self {
-            game_number: mr.game_number.unwrap_or_default(),
+            game_number: mr.game_number,
             winning_player: if mr.winning_team_id == controller_seat_id {
                 controller_player_name.into()
             } else {

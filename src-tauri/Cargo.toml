@@ -16,7 +16,7 @@ tauri-build = { version = "2.0.0-rc", features = [] }
 
 [dependencies]
 anyhow = "1.0.89"
-ap_core = { git = "https://github.com/gazure/arenaparser.git", tag = "0.1.14" }
+ap_core = { git = "https://github.com/gazure/arenaparser.git", tag = "0.1.15" }
 chrono = "0.4.38"
 crossbeam = "0.8.4"
 indoc = "2.0.5"
